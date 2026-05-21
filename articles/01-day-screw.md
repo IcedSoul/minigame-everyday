@@ -54,6 +54,8 @@ WorkBuddy 先搜了一圈这款游戏的玩法说明，整理出核心规则和�
 
 这不对，游戏引擎就是拿来解决这类问题的。**我打断了它，要求改用 Phaser 3**。
 
+![H5 Canvas 最基础版本](./images/01-day-screw/01-screw-h5-basic.png)
+
 改用 Phaser 之后，又卡在了脚手架上。模板仓库 `wbgbg/phaser-wx-template` 只在 Gitee，GitHub 上找不到——AI 搜了一圈，最后去 Gitee 上才找到。
 
 **我的输入（原文）：**
@@ -78,6 +80,8 @@ WorkBuddy 先搜了一圈这款游戏的玩法说明，整理出核心规则和�
 > **值得一提的是**：`weixin-minigame-helper` 运行完之后，WorkBuddy 会立即调用 `get_logs` 读取控制台输出——发现报错之后直接就地修复，不需要人工介入。这个"跑 → 读日志 → 修错"的闭环是自动完成的，省去了大量来回确认的时间。
 
 但截图仍然一直超时，这是性能优化还不够好。
+
+![Phaser 基础版本](./images/01-day-screw/02-screw-phaser-basic.png)
 
 这是微信小游戏的 wx-compat 沙箱的锅——`Phaser.WEBGL` 模式下，截图需要从 GPU 把像素读回 CPU（readback），这个操作在沙箱里会卡死。
 
@@ -145,6 +149,8 @@ WorkBuddy 先搜了一圈这款游戏的玩法说明，整理出核心规则和�
 ### 2.6 第三轮完善：遮挡粒度、备选回流、布局分布
 
 截图出来之后，能看清楚的问题一下子多了起来。板子全堆在上半屏，下面一大片空白。遮挡逻辑玩起来很憋屈。备选区进去了就出不来。
+
+![最终完成版本](./images/01-day-screw/03-screw-final.png)
 
 **我的输入（原文）：**
 

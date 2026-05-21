@@ -123,9 +123,9 @@ WorkBuddy 击中我的核心点有两个，按重要性排序：
 
 对于"每天必须出活"的节奏来说，这种闭环带来的速度差是数量级的。所以这个系列就用 WorkBuddy 全程贯穿。
 
-![WorkBuddy 启动界面](./images/01-workbuddy-overview.png)
-![插件介绍](./images/02-plugin-overview.png)
-![插件界面](./images/03-plugin-main.png)
+![WorkBuddy 启动界面](./images/00-prologue/01-workbuddy-overview.png)
+![插件介绍](./images/00-prologue/02-plugin-overview.png)
+![插件界面](./images/00-prologue/03-plugin-main.png)
 ---
 
 ## 三 调研过程：和 AI 的真实对话
