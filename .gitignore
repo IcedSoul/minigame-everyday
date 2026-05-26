@@ -1,1 +1,7 @@
 .workbuddy/
+
+# macOS
+.DS_Store
+
+# Temporary drafts
+tmp.md

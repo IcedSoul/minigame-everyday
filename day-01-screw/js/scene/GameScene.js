@@ -159,8 +159,10 @@ export class GameScene extends Phaser.Scene {
 
   refreshHUD() {
     const remaining = this.totalScrews - this.removedCount;
+    const poolRemain = (this.level && this.level.colorPool ? this.level.colorPool.length : 0) - (this.colorPoolIdx || 0);
+    const boxCnts = this.boxes.map((b) => `${b.color}:${b.count}`).join(',');
     this.statusText.setText(
-      `剩余 ${remaining} / ${this.totalScrews} · 备选 ${this.buffer.length}/${BUFFER_CAPACITY}`,
+      `剩余 ${remaining}/${this.totalScrews} · 备选 ${this.buffer.length}/${BUFFER_CAPACITY} · 箱${this.boxes.length} · 池${poolRemain}\n[${boxCnts}]`,
     );
   }
 
@@ -203,6 +205,7 @@ export class GameScene extends Phaser.Scene {
     const g = this.boxGfx;
     g.clear();
     for (const box of this.boxes) {
+      if (box.removed || box.color == null) continue;
       this.drawToolboxInto(g, box);
     }
   }
@@ -451,7 +454,9 @@ export class GameScene extends Phaser.Scene {
     if (!board || board.removed) return;
     if (!screw.unlocked) return;
 
-    const targetBox = this.boxes.find((bx) => bx.color === screw.color);
+    const targetBox = this.boxes.find(
+      (bx) => !bx.removed && bx.color === screw.color && bx.count < BOX_SLOT_CAPACITY,
+    );
     screw.sprite.disableInteractive();
 
     if (targetBox) {
@@ -493,6 +498,7 @@ export class GameScene extends Phaser.Scene {
           this.removeScrewFromBoard(fromBoard, screw);
         }
         targetBox.count += 1;
+        console.log('[WIN-DBG] flyScrewToBox done, box color=', targetBox.color, 'count=', targetBox.count, '/', BOX_SLOT_CAPACITY);
         if (targetBox.count >= BOX_SLOT_CAPACITY) {
           this.dissolveBox(targetBox);
         } else {
@@ -532,12 +538,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * 工具箱满 3 后消除并补新色：
-   *  1. 选一个不在当前其他工具箱颜色中的新色
-   *  2. 扫描 buffer：如果新色与 buffer 中任意螺丝同色 → 该螺丝飞入工具箱
-   *  3. buffer 中剩余螺丝向左平移对齐到 0..n-1 位
+   * 工具箱满 3 后消除并补新色（按序从 colorPool 消费，不循环）：
+   *  1. colorPool 还有色 → 取下一个色
+   *  2. colorPool 已空 → 该槽位空缺（不再产生新工具箱）
+   *  3. 扫描 buffer：如果新色与 buffer 中任意螺丝同色 → 该螺丝飞入工具箱
    */
   dissolveBox(box) {
+    console.log('[WIN-DBG] dissolveBox enter color=', box.color, 'poolIdx=', this.colorPoolIdx, '/', this.level.colorPool.length, 'boxesLen=', this.boxes.length);
     const flash = this.add.graphics();
     flash.fillStyle(0xffffff, 0.85);
     flash.fillRoundedRect(box.cx - box.sw / 2, box.cy - box.sh / 2, box.sw, box.sh, box.r);
@@ -549,20 +556,29 @@ export class GameScene extends Phaser.Scene {
       onComplete: () => flash.destroy(),
     });
 
-    const existing = new Set(this.boxes.filter((b) => b !== box).map((b) => b.color));
-    const pool = this.level.colorPool;
-    let next = box.color;
-    for (let tries = 0; tries < pool.length * 3; tries++) {
-      const c = pool[this.colorPoolIdx % pool.length];
+    if (this.colorPoolIdx < this.level.colorPool.length) {
+      box.color = this.level.colorPool[this.colorPoolIdx];
+      box.count = 0;
       this.colorPoolIdx += 1;
-      if (!existing.has(c)) { next = c; break; }
+      this.redrawAllBoxes();
+      console.log('[WIN-DBG] dissolveBox refilled new color=', box.color, 'poolIdx=', this.colorPoolIdx);
+      // 关键新增：扫描 buffer 看是否有同色螺丝可以回流
+      this.flushBufferToBoxes();
+    } else {
+      // 补给池耗尽，该槽位永久消失
+      box.color = null;
+      box.count = 0;
+      box.removed = true;
+      this.boxes = this.boxes.filter((b) => b !== box);
+      this.redrawAllBoxes();
+      this.flushBufferToBoxes();
+      console.log('[WIN-DBG] dissolveBox REMOVED, remaining boxes=', this.boxes.length, 'status=', this.status);
+      // 直接判：所有工具箱清空 = 通关（仿照失败路径，同步调用 endGame）
+      if (this.boxes.length === 0 && this.status === 'playing') {
+        console.log('[WIN-DBG] WIN TRIGGERED');
+        this.endGame('win');
+      }
     }
-    box.color = next;
-    box.count = 0;
-    this.redrawAllBoxes();
-
-    // 关键新增：扫描 buffer 看是否有同色螺丝可以回流
-    this.flushBufferToBoxes();
   }
 
   /**
@@ -578,7 +594,9 @@ export class GameScene extends Phaser.Scene {
     let box = null;
     for (let i = 0; i < this.buffer.length; i++) {
       const s = this.buffer[i];
-      const b = this.boxes.find((bx) => bx.color === s.color && bx.count < BOX_SLOT_CAPACITY);
+      const b = this.boxes.find(
+        (bx) => !bx.removed && bx.color === s.color && bx.count < BOX_SLOT_CAPACITY,
+      );
       if (b) { idx = i; box = b; break; }
     }
     if (idx === -1) return;
@@ -606,8 +624,9 @@ export class GameScene extends Phaser.Scene {
       onComplete: () => {
         screw.sprite.destroy();
         box.count += 1;
+        console.log('[WIN-DBG] flushBufferToBoxes done, box color=', box.color, 'count=', box.count, '/', BOX_SLOT_CAPACITY);
         if (box.count >= BOX_SLOT_CAPACITY) {
-          this.dissolveBox(box);  // 链式
+          this.dissolveBox(box);  // 链式（箱清光时内部会判胜）
         } else {
           this.redrawAllBoxes();
           // 还有可能继续匹配（一个箱填了一颗后仍有空位）
@@ -637,26 +656,30 @@ export class GameScene extends Phaser.Scene {
   }
 
   afterRemoval(board) {
-    if (board.screws.length === 0 && !board.removed) {
+    if (board && board.screws.length === 0 && !board.removed) {
       board.removed = true;
       this.redrawAllBoards();
     }
     this.recomputeOcclusion();
     this.refreshHUD();
+    this.checkWinCondition();
+  }
 
-    const totalLeft = this.boards
-      .filter((b) => !b.removed)
-      .reduce((sum, b) => sum + b.screws.length, 0);
-    if (totalLeft === 0 && this.status === 'playing') {
-      this.time.delayedCall(220, () => this.endGame('win'));
-    }
+  /**
+   * 胜利判定已经下放到 dissolveBox（最后一个工具箱消失时即胜利），
+   * 这里保留空函数避免老调用点崩溃。
+   */
+  checkWinCondition() {
+    // no-op
   }
 
   // ───────────────────── 胜负 ─────────────────────
 
   endGame(result) {
+    console.log('[WIN-DBG] endGame called, result=', result, 'status=', this.status);
     this.status = result;
     const overlay = this.add.graphics();
+    overlay.setDepth(10000);
     overlay.fillStyle(0x000000, 0.7);
     overlay.fillRect(0, 0, WIDTH, HEIGHT);
 
@@ -667,12 +690,13 @@ export class GameScene extends Phaser.Scene {
       fontSize: `${Math.round(this.s(72))}px`,
       color: titleColor,
       fontStyle: 'bold',
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(10001);
 
     const tip = this.add.text(WIDTH / 2, HEIGHT / 2 + this.s(40), '点击屏幕重开（新关卡）', {
       fontSize: `${Math.round(this.s(28))}px`,
       color: '#ffffff',
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(10001);
+    console.log('[WIN-DBG] endGame UI created');
 
     this.input.once('pointerdown', () => {
       overlay.destroy();

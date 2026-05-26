@@ -118,11 +118,29 @@ export function generateLevel(seed) {
     });
   }
 
-  // 4. 顶部 4 个工具箱初始颜色
-  const initialBoxColors = pickN(levelColors, TOP_BOX_COUNT, rand);
-
-  // 5. 颜色补给池
-  const colorPool = shuffle(levelColors.concat(levelColors).concat(levelColors), rand);
+  // 4. 工具箱颜色序列：保证总消除次数 = 总螺丝数 / 3
+  //    每色螺丝数 = LEVEL_GROUPS_PER_COLOR * 3，即每色需要 LEVEL_GROUPS_PER_COLOR 次消除
+  //    所有颜色共需 LEVEL_TOTAL_COLORS * LEVEL_GROUPS_PER_COLOR 次消除
+  //    例：7 色 × 9 螺丝 = 63；7 × 3 = 21 次消除（每次消 3 颗，正好 63）
+  //    总盒子序列 = 21 个；前 4 个作为初始 4 工具箱，其余 17 个是后续补给
+  //
+  //    约束：初始 4 个必须互相不重复，避免一开始就有重色
+  const totalDissolves = LEVEL_TOTAL_COLORS * LEVEL_GROUPS_PER_COLOR;
+  // 颜色多重集：每色出现 LEVEL_GROUPS_PER_COLOR 次
+  const fullSequence = [];
+  for (const c of levelColors) {
+    for (let i = 0; i < LEVEL_GROUPS_PER_COLOR; i++) fullSequence.push(c);
+  }
+  // 反复打乱直到前 TOP_BOX_COUNT 个互不相同
+  let boxSequence = shuffle(fullSequence, rand);
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const head = boxSequence.slice(0, TOP_BOX_COUNT);
+    if (new Set(head).size === TOP_BOX_COUNT) break;
+    boxSequence = shuffle(fullSequence, rand);
+  }
+  const initialBoxColors = boxSequence.slice(0, TOP_BOX_COUNT);
+  // 补给池：剩余的 (totalDissolves - TOP_BOX_COUNT) 个，按顺序消费
+  const colorPool = boxSequence.slice(TOP_BOX_COUNT);
 
   return {
     boards,
