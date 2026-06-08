@@ -67,7 +67,7 @@ export class Main {
     this.engine = engine;
     this.canvas = canvas;
     this.scene = new GameScene(engine, canvas);
-    this.scene.create();
+    this.scene.create().catch((e) => console.error('[Main] scene create failed', e));
   }
 }
 

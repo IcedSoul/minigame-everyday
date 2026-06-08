@@ -72,7 +72,7 @@ export class GameScene {
     this.tray = null;          // { root, slotCenters }
   }
 
-  create() {
+  async create() {
     console.log('[GameScene] create');
     this.scene = new BABYLON.Scene(this.engine);
     this.scene.clearColor = BABYLON.Color3.FromHexString('#1d3557').toColor4(1);
@@ -81,7 +81,7 @@ export class GameScene {
     this._setupLights();
     this._setupContainer();
     this._setupSlotTray();
-    this._setupPhysicsAndItems();
+    await this._setupPhysicsAndItems();
     this._setupGUI();
     this._setupPicking();
     this._setupShake();
@@ -201,11 +201,11 @@ export class GameScene {
   }
 
   // ───────────── 物理 + Items ─────────────
-  _setupPhysicsAndItems() {
+  async _setupPhysicsAndItems() {
     this.physics = new PhysicsWorld();
     const level = generateLevel();
     for (const it of level.items) {
-      const mesh = createItemMesh(this.scene, it.id, it.type);
+      const mesh = await createItemMesh(this.scene, it.id, it.type);
       mesh.position.set(it.x, it.y, it.z);
       // 阴影投射
       if (this.shadowGen) this.shadowGen.addShadowCaster(mesh);
@@ -646,7 +646,19 @@ export class GameScene {
       animPos.setEasingFunction(ease);
 
       const anims = [animPos];
+
+      // 飞入槽位时重置旋转为 0（确保苹果等模型在槽内居中不偏移）
       if (shrink) {
+        const animRot = new BABYLON.Animation('rot', 'rotation',
+          fps, BABYLON.Animation.ANIMATIONTYPE_VECTOR3,
+          BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT);
+        animRot.setKeys([
+          { frame: 0, value: mesh.rotation.clone() },
+          { frame: totalFrames, value: BABYLON.Vector3.Zero() },
+        ]);
+        animRot.setEasingFunction(ease);
+        anims.push(animRot);
+
         const animScale = new BABYLON.Animation('scale', 'scaling',
           fps, BABYLON.Animation.ANIMATIONTYPE_VECTOR3,
           BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT);
@@ -792,7 +804,7 @@ export class GameScene {
     this.againBtn = btn;
   }
 
-  _restart() {
+  async _restart() {
     // 简单粗暴：销毁场景重建
     this.shake && this.shake.stop();
     this._renderRunning = false;
@@ -807,6 +819,6 @@ export class GameScene {
     this.isAnimating = false;
     this.timeLeft = TIME_LIMIT_SEC;
     this._physicsAcc = 0;
-    this.create();
+    await this.create();
   }
 }

@@ -1,0 +1,19 @@
+{
+  "description": "快乐拼拼豆",
+  "packOptions": {
+    "ignore": [
+      { "type": "file", "value": "node_modules" },
+      { "type": "file", "value": "index.html" },
+      { "type": "file", "value": "serve-viewer.js" },
+      { "type": "folder", "value": "skill" }
+    ]
+  },
+  "setting": {
+    "es6": true,
+    "enhance": true,
+    "minified": true
+  },
+  "compileType": "game",
+  "appid": "wx0000000000000000",
+  "projectname": "day-06-beads"
+}
